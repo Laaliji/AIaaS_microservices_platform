@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  gateway:
+    build: ./gateway
+    ports:
+      - "8000:8000"
+    environment:
+      - TEXT_GEN_SERVICE_URL=http://text-gen:8000
+
+  text-gen:
+    build: ./services/text-gen
+    # No ports exposed to the host, only accessible within the docker network
