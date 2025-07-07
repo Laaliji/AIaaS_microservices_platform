@@ -7,7 +7,83 @@ services:
       - "8000:8000"
     environment:
       - TEXT_GEN_SERVICE_URL=http://text-gen:8000
+      - SENTIMENT_SERVICE_URL=http://sentiment-analyzer:8000
+      - EMBEDDINGS_SERVICE_URL=http://embeddings-service:8000
+      - VECTOR_DB_SERVICE_URL=http://vector-db:8000
+      - RETRIEVER_SERVICE_URL=http://retriever:8000
+      - RAG_ORCHESTRATOR_SERVICE_URL=http://rag-orchestrator:8000
+      - DATA_INGESTION_SERVICE_URL=http://data-ingestion:8000
+      - ASYNC_PROCESSOR_SERVICE_URL=http://async-processor:8000
+      - API_KEY=your-super-secret-key # Change this in production
 
   text-gen:
     build: ./services/text-gen
     # No ports exposed to the host, only accessible within the docker network
+
+  sentiment-analyzer:
+    build: ./services/sentiment-analyzer
+    # No ports exposed to the host, only accessible within the docker network
+
+  embeddings-service:
+    build: ./services/embeddings-service
+    # No ports exposed to the host, only accessible within the docker network
+
+  vector-db:
+    build: ./services/vector-db
+    volumes:
+      - vector_data:/data/chroma_db
+    # No ports exposed to the host, only accessible within the docker network
+
+  retriever:
+    build: ./services/retriever
+    environment:
+      - VECTOR_DB_SERVICE_URL=http://vector-db:8000
+    # No ports exposed to the host, only accessible within the docker network
+    depends_on:
+      - vector-db
+
+  rag-orchestrator:
+    build: ./services/rag-orchestrator
+    environment:
+      - RETRIEVER_SERVICE_URL=http://retriever:8000
+      - TEXT_GEN_SERVICE_URL=http://text-gen:8000
+    # No ports exposed to the host, only accessible within the docker network
+    depends_on:
+      - retriever
+      - text-gen
+
+  data-ingestion:
+    build: ./services/data-ingestion
+    environment:
+      - VECTOR_DB_SERVICE_URL=http://vector-db:8000
+      - CHUNK_SIZE=1000
+      - CHUNK_OVERLAP=200
+    # No ports exposed to the host, only accessible within the docker network
+    depends_on:
+      - vector-db
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  async-processor:
+    build: ./services/async-processor
+    ports:
+      - "5555:5555" # Flower monitoring UI
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - RAG_ORCHESTRATOR_SERVICE_URL=http://rag-orchestrator:8000
+      - DATA_INGESTION_SERVICE_URL=http://data-ingestion:8000
+    depends_on:
+      - redis
+      - rag-orchestrator
+      - data-ingestion
+
+volumes:
+  vector_data:
+    # This named volume will persist the vector database data
+  redis_data:
+    # This named volume will persist Redis data
